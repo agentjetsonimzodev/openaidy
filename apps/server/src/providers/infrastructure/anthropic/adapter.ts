@@ -17,7 +17,6 @@ import {
   type ModelResponse,
   type ModelStreamEvent,
   type ProviderResult,
-  type FinishReason,
 } from '@openaidy/runtime';
 import { mapRequest } from './request-mapper';
 import {
@@ -26,7 +25,6 @@ import {
   createToolCallAccumulator,
   updateToolCallAccumulator,
   finalizeToolCalls,
-  extractStopReasonFromDelta,
 } from './response-mapper';
 import { normalizeError, isAnthropicError } from './error-normalizer';
 import type {
@@ -54,7 +52,10 @@ const PROVIDER_NAME = 'Anthropic';
 /**
  * Common Anthropic models with their capabilities
  */
-const KNOWN_MODELS: Record<string, { name: string; capabilities: ProviderCapability[] }> = {
+const KNOWN_MODELS: Record<
+  string,
+  { name: string; capabilities: ProviderCapability[] }
+> = {
   'claude-opus-4-20250514': {
     name: 'Claude Opus 4',
     capabilities: ['text_generation', 'streaming', 'tool_calls', 'vision'],
@@ -144,16 +145,15 @@ export class AnthropicProvider implements ModelProvider {
   // =====================
 
   async listModels(): Promise<ProviderResult<readonly ModelDescriptor[]>> {
-    // Anthropic doesn't have a list models endpoint
-    // Return known models based on documentation
-    const models: ModelDescriptor[] = Object.entries(KNOWN_MODELS).map(([id, info]) => ({
-      id,
-      providerId: this.descriptor.id,
-      name: info.name,
-      capabilities: this.buildModelCapabilities(info.capabilities),
-    }));
+    const models: ModelDescriptor[] = Object.entries(KNOWN_MODELS).map(
+      ([id, info]) => ({
+        id,
+        providerId: this.descriptor.id,
+        name: info.name,
+        capabilities: this.buildModelCapabilities(info.capabilities),
+      }),
+    );
 
-    // Add default model if not in known list
     if (!models.find((m) => m.id === this.config.defaultModel)) {
       models.push({
         id: this.config.defaultModel!,
@@ -167,7 +167,6 @@ export class AnthropicProvider implements ModelProvider {
   }
 
   async getModel(modelId: string): Promise<ProviderResult<ModelDescriptor>> {
-    // Check known models first
     const known = KNOWN_MODELS[modelId];
     if (known) {
       return ok({
@@ -178,22 +177,26 @@ export class AnthropicProvider implements ModelProvider {
       });
     }
 
-    // For unknown models, return a generic descriptor
-    // This allows the adapter to work with new models
     return ok({
       id: modelId,
       providerId: this.descriptor.id,
       name: modelId,
-      capabilities: this.buildModelCapabilities(['text_generation', 'streaming']),
+      capabilities: this.buildModelCapabilities([
+        'text_generation',
+        'streaming',
+      ]),
     });
   }
 
   private buildModelCapabilities(
-    modelCaps: ProviderCapability[]
+    modelCaps: ProviderCapability[],
   ): ProviderCapability[] {
     const caps: ProviderCapability[] = ['text_generation'];
 
-    if (modelCaps.includes('streaming') && this.config.enableStreaming !== false) {
+    if (
+      modelCaps.includes('streaming') &&
+      this.config.enableStreaming !== false
+    ) {
       caps.push('streaming');
     }
     if (modelCaps.includes('tool_calls') && this.config.enableTools !== false) {
@@ -219,27 +222,32 @@ export class AnthropicProvider implements ModelProvider {
   // =====================
 
   async invoke(request: ModelRequest): Promise<ProviderResult<ModelResponse>> {
-    // Check capabilities
-    if (request.tools && request.tools.length > 0 && !this.hasCapability('tool_calls')) {
+    if (
+      request.tools &&
+      request.tools.length > 0 &&
+      !this.hasCapability('tool_calls')
+    ) {
       return err(
         createProviderError(
           'provider.capability_unsupported',
           `Provider "${this.descriptor.id}" does not support tool calls`,
-          { providerId: this.descriptor.id, modelId: request.model }
-        )
+          { providerId: this.descriptor.id, modelId: request.model },
+        ),
       );
     }
 
     try {
-      // Build options, filtering out undefined values for exactOptionalPropertyTypes
-      const mapperOptions: { defaultMaxTokens?: number; defaultTemperature?: number } = {};
+      const mapperOptions: {
+        defaultMaxTokens?: number;
+        defaultTemperature?: number;
+      } = {};
       if (this.config.defaultMaxTokens !== undefined) {
         mapperOptions.defaultMaxTokens = this.config.defaultMaxTokens;
       }
       if (this.config.defaultTemperature !== undefined) {
         mapperOptions.defaultTemperature = this.config.defaultTemperature;
       }
-      
+
       const anthropicRequest = mapRequest(request, mapperOptions);
 
       const response = await this.fetch(`${this.config.baseUrl}/messages`, {
@@ -261,14 +269,19 @@ export class AnthropicProvider implements ModelProvider {
           normalizeError(isAnthropicError(errorData) ? errorData : response, {
             providerId: this.descriptor.id,
             modelId: request.model,
-          })
+          }),
         );
       }
 
       const data = (await response.json()) as AnthropicMessagesResponse;
       return ok(mapResponse(data, this.descriptor.id));
     } catch (error) {
-      return err(normalizeError(error, { providerId: this.descriptor.id, modelId: request.model }));
+      return err(
+        normalizeError(error, {
+          providerId: this.descriptor.id,
+          modelId: request.model,
+        }),
+      );
     }
   }
 
@@ -276,38 +289,41 @@ export class AnthropicProvider implements ModelProvider {
   // Streaming Invocation
   // =====================
 
-  async *invokeStream(request: ModelRequest): AsyncIterable<ProviderResult<ModelStreamEvent>> {
-    // Check streaming capability
+  async *invokeStream(
+    request: ModelRequest,
+  ): AsyncIterable<ProviderResult<ModelStreamEvent>> {
     if (!this.hasCapability('streaming')) {
       yield err(
         createProviderError(
           'provider.capability_unsupported',
           `Provider "${this.descriptor.id}" does not support streaming`,
-          { providerId: this.descriptor.id, modelId: request.model }
-        )
+          { providerId: this.descriptor.id, modelId: request.model },
+        ),
       );
       return;
     }
 
     const streamId = `stream_${Date.now()}`;
     const toolCallAccumulator = createToolCallAccumulator();
-    // Track finish reason for potential future use (e.g., logging, debugging)
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const finishReason: FinishReason = 'stop';
     let messageId = streamId;
     let model = request.model;
 
     try {
-      // Build options, filtering out undefined values for exactOptionalPropertyTypes
-      const mapperOptions: { defaultMaxTokens?: number; defaultTemperature?: number } = {};
+      const mapperOptions: {
+        defaultMaxTokens?: number;
+        defaultTemperature?: number;
+      } = {};
       if (this.config.defaultMaxTokens !== undefined) {
         mapperOptions.defaultMaxTokens = this.config.defaultMaxTokens;
       }
       if (this.config.defaultTemperature !== undefined) {
         mapperOptions.defaultTemperature = this.config.defaultTemperature;
       }
-      
-      const anthropicRequest = mapRequest({ ...request, stream: true }, mapperOptions);
+
+      const anthropicRequest = mapRequest(
+        { ...request, stream: true },
+        mapperOptions,
+      );
 
       const response = await this.fetch(`${this.config.baseUrl}/messages`, {
         method: 'POST',
@@ -328,22 +344,25 @@ export class AnthropicProvider implements ModelProvider {
           normalizeError(isAnthropicError(errorData) ? errorData : response, {
             providerId: this.descriptor.id,
             modelId: request.model,
-          })
+          }),
         );
         return;
       }
 
       if (!response.body) {
         yield err(
-          createProviderError('provider.stream_error', 'Response body is null', {
-            providerId: this.descriptor.id,
-            modelId: request.model,
-          })
+          createProviderError(
+            'provider.stream_error',
+            'Response body is null',
+            {
+              providerId: this.descriptor.id,
+              modelId: request.model,
+            },
+          ),
         );
         return;
       }
 
-      // Process SSE stream
       const reader = response.body.getReader();
       const decoder = new TextDecoder();
       let buffer = '';
@@ -354,30 +373,25 @@ export class AnthropicProvider implements ModelProvider {
 
         buffer += decoder.decode(value, { stream: true });
 
-        // Process complete SSE events
         const lines = buffer.split('\n');
         buffer = lines.pop() ?? '';
 
         for (const line of lines) {
           const trimmed = line.trim();
 
-          // Skip empty lines and comments
           if (!trimmed || trimmed.startsWith(':')) continue;
 
-          // Parse SSE data
           if (trimmed.startsWith('data: ')) {
             const data = trimmed.slice(6);
 
             try {
               const event = JSON.parse(data) as AnthropicStreamEvent;
 
-              // Track message ID and model from message_start
               if (event.type === 'message_start') {
                 messageId = event.message.id;
                 model = event.message.model;
               }
 
-              // Track tool calls
               if (
                 event.type === 'content_block_start' ||
                 event.type === 'content_block_delta'
@@ -385,33 +399,21 @@ export class AnthropicProvider implements ModelProvider {
                 updateToolCallAccumulator(toolCallAccumulator, event);
               }
 
-              // Track finish reason from message_delta
-              if (event.type === 'message_delta') {
-                const extractedReason = extractStopReasonFromDelta(event);
-                if (extractedReason) {
-                  // finishReason is tracked but not used in current implementation
-                  // Could be useful for logging/debugging in the future
-                }
-              }
-
-              // Map events to normalized format
               for (const normalizedEvent of mapStreamEvent(
                 event,
                 this.descriptor.id,
                 messageId,
-                model
+                model,
               )) {
                 yield ok(normalizedEvent);
               }
             } catch {
-              // Skip malformed JSON
               continue;
             }
           }
         }
       }
 
-      // Emit tool call events for accumulated tool calls
       const toolCalls = finalizeToolCalls(toolCallAccumulator);
       if (toolCalls) {
         for (const toolCall of toolCalls) {
@@ -423,14 +425,15 @@ export class AnthropicProvider implements ModelProvider {
           });
         }
       }
-
-      // Note: finish reason tracking for tool calls could be added here if needed
     } catch (error) {
-      yield err(normalizeError(error, { providerId: this.descriptor.id, modelId: request.model }));
+      yield err(
+        normalizeError(error, {
+          providerId: this.descriptor.id,
+          modelId: request.model,
+        }),
+      );
       return;
     }
-
-    // Note: stream.finished is emitted by mapStreamEvent on message_stop
   }
 
   // =====================
@@ -444,12 +447,10 @@ export class AnthropicProvider implements ModelProvider {
       'anthropic-version': this.config.apiVersion,
     };
 
-    // Add beta headers if configured
     if (this.config.betas && this.config.betas.length > 0) {
       headers['anthropic-beta'] = this.config.betas.join(',');
     }
 
-    // Add custom headers
     if (this.config.headers) {
       Object.assign(headers, this.config.headers);
     }
@@ -459,7 +460,10 @@ export class AnthropicProvider implements ModelProvider {
 
   private createAbortSignal(): AbortSignal {
     const controller = new AbortController();
-    setTimeout(() => controller.abort(), this.config.timeoutMs ?? DEFAULT_TIMEOUT_MS);
+    setTimeout(
+      () => controller.abort(),
+      this.config.timeoutMs ?? DEFAULT_TIMEOUT_MS,
+    );
     return controller.signal;
   }
 
@@ -472,19 +476,15 @@ export class AnthropicProvider implements ModelProvider {
 // Factory Functions
 // =====================
 
-/**
- * Creates an Anthropic provider instance
- */
-export function createAnthropicProvider(config: AnthropicAdapterConfig): ModelProvider {
+export function createAnthropicProvider(
+  config: AnthropicAdapterConfig,
+): ModelProvider {
   return new AnthropicProvider(config);
 }
 
-/**
- * Creates an Anthropic provider with standard configuration
- */
 export function createClaudeProvider(
   apiKey: string,
-  options?: Partial<AnthropicAdapterConfig>
+  options?: Partial<AnthropicAdapterConfig>,
 ): ModelProvider {
   return createAnthropicProvider({
     apiKey,
@@ -496,13 +496,10 @@ export function createClaudeProvider(
   });
 }
 
-/**
- * Creates an Anthropic provider with a specific model
- */
 export function createClaudeModelProvider(
   apiKey: string,
   model: string,
-  options?: Partial<AnthropicAdapterConfig>
+  options?: Partial<AnthropicAdapterConfig>,
 ): ModelProvider {
   return createAnthropicProvider({
     apiKey,

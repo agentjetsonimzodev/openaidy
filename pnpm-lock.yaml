@@ -56,6 +56,7 @@ importers:
       '@fastify/websocket':
         specifier: ^11.2.0
         version: 11.2.0
+<<<<<<< Updated upstream
       '@modelcontextprotocol/sdk':
         specifier: ^1.29.0
         version: 1.29.0(zod@3.25.76)
@@ -65,6 +66,11 @@ importers:
       '@openaidy/db':
         specifier: workspace:*
         version: link:../../packages/db
+=======
+      '@openaidy/config':
+        specifier: workspace:*
+        version: link:../../packages/config
+>>>>>>> Stashed changes
       '@openaidy/runtime':
         specifier: workspace:*
         version: link:../../packages/runtime
