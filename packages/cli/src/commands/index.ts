@@ -530,7 +530,269 @@ registerCommand(
   },
 );
 
-// Devices commands
+// ============================================================================
+// Sessions Commands
+// ============================================================================
+
+registerGroup({
+  name: 'sessions',
+  description: 'Manage chat sessions',
+  commands: {
+    'sessions list': {
+      description: 'List all sessions',
+      usage: 'openaidy sessions list [--limit <n>]',
+      examples: [
+        'pnpm openaidy sessions list',
+        'pnpm openaidy sessions list --limit 20',
+      ],
+    },
+    'sessions create': {
+      description: 'Create a new session',
+      usage: 'openaidy sessions create [title]',
+      examples: [
+        'pnpm openaidy sessions create',
+        'pnpm openaidy sessions create "My Chat"',
+      ],
+    },
+    'sessions get': {
+      description: 'Get session details by ID',
+      usage: 'openaidy sessions get <sessionId>',
+      examples: ['pnpm openaidy sessions get sess_abc123'],
+    },
+    'sessions messages': {
+      description: 'List all messages in a session',
+      usage: 'openaidy sessions messages <sessionId>',
+      examples: ['pnpm openaidy sessions messages sess_abc123'],
+    },
+    'sessions runs': {
+      description: 'List all runs for a session',
+      usage: 'openaidy sessions runs <sessionId>',
+      examples: ['pnpm openaidy sessions runs sess_abc123'],
+    },
+  },
+});
+
+registerCommand(
+  'sessions list',
+  async (args: string[]) => {
+    const { sessionsListHandler } = await import('./sessions/list.js');
+    return sessionsListHandler(args);
+  },
+  {
+    description: 'List all sessions',
+    usage: 'openaidy sessions list [--limit <n>]',
+    examples: ['pnpm openaidy sessions list', 'pnpm openaidy sessions list --limit 20'],
+  },
+);
+
+registerCommand(
+  'sessions create',
+  async (args: string[]) => {
+    const { sessionsCreateHandler } = await import('./sessions/create.js');
+    return sessionsCreateHandler(args);
+  },
+  {
+    description: 'Create a new session',
+    usage: 'openaidy sessions create [title]',
+    examples: ['pnpm openaidy sessions create', 'pnpm openaidy sessions create "My Chat"'],
+  },
+);
+
+registerCommand(
+  'sessions get',
+  async (args: string[]) => {
+    const { sessionsGetHandler } = await import('./sessions/get.js');
+    return sessionsGetHandler(args);
+  },
+  {
+    description: 'Get session details by ID',
+    usage: 'openaidy sessions get <sessionId>',
+    examples: ['pnpm openaidy sessions get sess_abc123'],
+  },
+);
+
+registerCommand(
+  'sessions messages',
+  async (args: string[]) => {
+    const { sessionsMessagesHandler } = await import('./sessions/messages.js');
+    return sessionsMessagesHandler(args);
+  },
+  {
+    description: 'List all messages in a session',
+    usage: 'openaidy sessions messages <sessionId>',
+    examples: ['pnpm openaidy sessions messages sess_abc123'],
+  },
+);
+
+registerCommand(
+  'sessions runs',
+  async (args: string[]) => {
+    const { sessionsRunsHandler } = await import('./sessions/runs.js');
+    return sessionsRunsHandler(args);
+  },
+  {
+    description: 'List all runs for a session',
+    usage: 'openaidy sessions runs <sessionId>',
+    examples: ['pnpm openaidy sessions runs sess_abc123'],
+  },
+);
+
+// ============================================================================
+// Pulses Commands
+// ============================================================================
+
+registerGroup({
+  name: 'pulses',
+  description: 'Manage scheduled AI tasks (pulses)',
+  commands: {
+    'pulses list': {
+      description: 'List all pulses',
+      usage: 'openaidy pulses list [--status <status>] [--limit <n>]',
+      examples: [
+        'pnpm openaidy pulses list',
+        'pnpm openaidy pulses list --status active',
+        'pnpm openaidy pulses list --limit 10',
+      ],
+    },
+    'pulses get': {
+      description: 'Get pulse details by ID',
+      usage: 'openaidy pulses get <id>',
+      examples: ['pnpm openaidy pulses get pulse_abc123'],
+    },
+    'pulses create': {
+      description: 'Create a new pulse',
+      usage: 'openaidy pulses create --name <name> --prompt <prompt> --every <interval>',
+      examples: [
+        'pnpm openaidy pulses create --name "Daily News" --prompt "What happened today?" --every 1d',
+        'pnpm openaidy pulses create --name "Morning" --prompt "Brief me" --daily 08:00',
+      ],
+    },
+    'pulses update': {
+      description: 'Update a pulse (pause, rename, reschedule, etc.)',
+      usage: 'openaidy pulses update <id> [--status active|paused] [--name <name>]',
+      examples: [
+        'pnpm openaidy pulses update pulse_abc123 --status paused',
+        'pnpm openaidy pulses update pulse_abc123 --every 1h',
+      ],
+    },
+    'pulses delete': {
+      description: 'Delete a pulse permanently',
+      usage: 'openaidy pulses delete <id>',
+      examples: ['pnpm openaidy pulses delete pulse_abc123'],
+    },
+    'pulses trigger': {
+      description: 'Manually trigger a pulse to run immediately',
+      usage: 'openaidy pulses trigger <id>',
+      examples: ['pnpm openaidy pulses trigger pulse_abc123'],
+    },
+    'pulses history': {
+      description: 'List execution history for a pulse',
+      usage: 'openaidy pulses history <id> [--limit <n>]',
+      examples: [
+        'pnpm openaidy pulses history pulse_abc123',
+        'pnpm openaidy pulses history pulse_abc123 --limit 10',
+      ],
+    },
+  },
+});
+
+registerCommand(
+  'pulses list',
+  async (args: string[]) => {
+    const { pulsesListHandler } = await import('./pulses/list.js');
+    return pulsesListHandler(args);
+  },
+  {
+    description: 'List all pulses',
+    usage: 'openaidy pulses list [--status <status>] [--limit <n>]',
+    examples: ['pnpm openaidy pulses list', 'pnpm openaidy pulses list --status active'],
+  },
+);
+
+registerCommand(
+  'pulses get',
+  async (args: string[]) => {
+    const { pulsesGetHandler } = await import('./pulses/get.js');
+    return pulsesGetHandler(args);
+  },
+  {
+    description: 'Get pulse details by ID',
+    usage: 'openaidy pulses get <id>',
+    examples: ['pnpm openaidy pulses get pulse_abc123'],
+  },
+);
+
+registerCommand(
+  'pulses create',
+  async (args: string[]) => {
+    const { pulsesCreateHandler } = await import('./pulses/create.js');
+    return pulsesCreateHandler(args);
+  },
+  {
+    description: 'Create a new pulse',
+    usage: 'openaidy pulses create --name <name> --prompt <prompt> --every <interval>',
+    examples: [
+      'pnpm openaidy pulses create --name "Daily News" --prompt "What happened?" --every 1d',
+    ],
+  },
+);
+
+registerCommand(
+  'pulses update',
+  async (args: string[]) => {
+    const { pulsesUpdateHandler } = await import('./pulses/update.js');
+    return pulsesUpdateHandler(args);
+  },
+  {
+    description: 'Update a pulse',
+    usage: 'openaidy pulses update <id> [--status active|paused] [--name <name>]',
+    examples: ['pnpm openaidy pulses update pulse_abc123 --status paused'],
+  },
+);
+
+registerCommand(
+  'pulses delete',
+  async (args: string[]) => {
+    const { pulsesDeleteHandler } = await import('./pulses/delete.js');
+    return pulsesDeleteHandler(args);
+  },
+  {
+    description: 'Delete a pulse permanently',
+    usage: 'openaidy pulses delete <id>',
+    examples: ['pnpm openaidy pulses delete pulse_abc123'],
+  },
+);
+
+registerCommand(
+  'pulses trigger',
+  async (args: string[]) => {
+    const { pulsesTriggerHandler } = await import('./pulses/trigger.js');
+    return pulsesTriggerHandler(args);
+  },
+  {
+    description: 'Manually trigger a pulse to run immediately',
+    usage: 'openaidy pulses trigger <id>',
+    examples: ['pnpm openaidy pulses trigger pulse_abc123'],
+  },
+);
+
+registerCommand(
+  'pulses history',
+  async (args: string[]) => {
+    const { pulsesHistoryHandler } = await import('./pulses/history.js');
+    return pulsesHistoryHandler(args);
+  },
+  {
+    description: 'List execution history for a pulse',
+    usage: 'openaidy pulses history <id> [--limit <n>]',
+    examples: ['pnpm openaidy pulses history pulse_abc123'],
+  },
+);
+
+// ============================================================================
+// Devices Commands
+// ============================================================================
+
 registerCommand(
   'devices list',
   async (args: string[]) => {
