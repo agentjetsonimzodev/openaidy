@@ -547,6 +547,171 @@ Denied:    2026-04-01 14:36:00
 
 ---
 
+### `sessions` - Chat Session Management
+
+Commands for managing chat sessions.
+
+#### `sessions list`
+
+List all sessions.
+
+```bash
+openaidy sessions list [--limit <n>]
+```
+
+#### `sessions create`
+
+Create a new session.
+
+```bash
+openaidy sessions create [title]
+```
+
+#### `sessions get`
+
+Get session details by ID.
+
+```bash
+openaidy sessions get <sessionId>
+```
+
+#### `sessions messages`
+
+List all messages in a session.
+
+```bash
+openaidy sessions messages <sessionId>
+```
+
+#### `sessions runs`
+
+List all runs for a session.
+
+```bash
+openaidy sessions runs <sessionId>
+```
+
+---
+
+### `mcp` - MCP Server Management
+
+Commands for managing Model Context Protocol servers.
+
+#### `mcp import`
+
+Import one or more MCP servers from a standard config file (or stdin) in the
+keyed-map format used by Claude Desktop, VS Code and Cursor. Accepts either the
+full `{ "mcpServers": { … } }` wrapper or a bare `{ "<id>": { … } }` map;
+transport is taken from `type`/`transport` or inferred from `command`/`url`.
+Reference secrets with `${ENV_VAR}` placeholders — they are resolved from the
+server environment at connection time and never persisted in plaintext.
+
+```bash
+openaidy mcp import ./mcp.json
+cat ~/.config/mcp.json | openaidy mcp import
+```
+
+Requires an admin token.
+
+#### `mcp migrate-secrets`
+
+One-shot migration: walk every persisted MCP server's `env`/`headers` and
+encrypt plaintext inline secrets in-place, so a copy of `~/.openaidy/openaidy.json`
+no longer exposes raw credentials. Existing installs that pasted a token
+directly into a header (the issue #401 scenario) end up with the same value
+re-written as `enc:v1:…` ciphertext.
+
+The migration is **idempotent**: re-running on an already-migrated config is
+a no-op. `${ENV_VAR}` references are left as plain placeholders — their
+secret lives in the process environment, not the config.
+
+```bash
+openaidy mcp migrate-secrets --dry-run   # show the plan without writing
+openaidy mcp migrate-secrets             # apply
+```
+
+Options:
+
+- `--dry-run` — print the plan (servers and key counts that would be encrypted) without persisting any changes.
+
+Requires an admin token.
+
+---
+
+### `providers` - Provider Management
+
+Commands for managing LLM provider connections.
+
+#### `providers list`
+
+List all available providers.
+
+```bash
+openaidy providers list
+```
+
+#### `providers connect`
+
+Connect to a provider.
+
+```bash
+openaidy providers connect <provider-id> [--api-key <key>]
+```
+
+#### `providers disconnect`
+
+Disconnect from a provider.
+
+```bash
+openaidy providers disconnect <provider-id>
+```
+
+---
+
+## Server Management Commands
+
+Top-level commands for controlling the OpenAidy server process.
+
+#### `start`
+
+Start the OpenAidy server as a background process.
+
+```bash
+openaidy start
+```
+
+#### `stop`
+
+Stop the running OpenAidy server.
+
+```bash
+openaidy stop
+```
+
+#### `restart`
+
+Restart the running OpenAidy server: stops it (gracefully) then starts a fresh one. Equivalent to running `openaidy stop` followed by `openaidy start`, but in a single command with port preservation and a coherent exit code (0 only if both steps succeed).
+
+```bash
+openaidy restart
+openaidy restart --port 3001
+openaidy restart --integrated
+```
+
+The port from the previous server PID file is preserved by default, so the user's browser tab and any client config stays pointed at the same origin. Pass `--port` to override (same semantics as `openaidy start`). `--server-only` and `--integrated` work exactly like `start`.
+
+If `stop` fails, `start` is **not** attempted — otherwise you'd risk starting a second server on a still-busy port. The stop error is surfaced directly.
+
+#### `status`
+
+Show the current server status.
+
+```bash
+openaidy status
+```
+
+---
+
 ## Exit Codes Reference
 
 | Code | Name              | Description                    |
@@ -837,6 +1002,284 @@ pnpm openaidy agents delete my-agent
 ```
 
 **Exit Codes:** `0` success or cancelled, `1` error or confirmation mismatch
+
+---
+
+### `tasks` - Task Management
+
+Commands for managing tasks and subtasks.
+
+---
+
+#### `tasks list`
+
+List all tasks, optionally filtered by status.
+
+**Usage:**
+
+```bash
+openaidy tasks list [--status <status>] [--limit <n>]
+```
+
+**Options:**
+
+| Option              | Description                                                           |
+| ------------------- | --------------------------------------------------------------------- |
+| `--status <status>` | Filter by status: backlog, todo, in_progress, review, done, cancelled |
+| `--limit <n>`       | Limit number of results (default: 50)                                 |
+
+**Examples:**
+
+```bash
+pnpm openaidy tasks list
+pnpm openaidy tasks list --status in_progress
+pnpm openaidy tasks list --limit 10
+```
+
+**Exit Codes:** `0` success, `1` error, `2` invalid arguments
+
+---
+
+#### `tasks get`
+
+Get full details for a specific task.
+
+**Usage:**
+
+```bash
+openaidy tasks get <id>
+```
+
+**Arguments:**
+
+| Argument | Description        |
+| -------- | ------------------ |
+| `<id>`   | Task ID (required) |
+
+**Examples:**
+
+```bash
+pnpm openaidy tasks get abc123
+```
+
+**Exit Codes:** `0` success, `1` error, `2` missing task ID
+
+---
+
+#### `tasks create`
+
+Create a new task.
+
+**Usage:**
+
+```bash
+openaidy tasks create [title] [--description <desc>] [--priority <p>] [--planning]
+```
+
+**Arguments:**
+
+| Argument  | Description                                                 |
+| --------- | ----------------------------------------------------------- |
+| `[title]` | Task title (optional — derived from description if omitted) |
+
+**Options:**
+
+| Option                 | Description                                           |
+| ---------------------- | ----------------------------------------------------- |
+| `--description <desc>` | Task description (required if no title)               |
+| `--priority <p>`       | Priority: low, medium, high, urgent (default: medium) |
+| `--planning`           | Enable planning agent to decompose into subtasks      |
+
+**Examples:**
+
+```bash
+pnpm openaidy tasks create "Fix login bug" --priority high
+pnpm openaidy tasks create --description "Implement the new API endpoint"
+pnpm openaidy tasks create "Plan database migration" --planning
+```
+
+**Exit Codes:** `0` success, `1` error, `2` invalid arguments
+
+---
+
+#### `tasks update`
+
+Update a task's title, description, priority, or status.
+
+**Usage:**
+
+```bash
+openaidy tasks update <id> [--title <title>] [--description <desc>] [--priority <p>] [--status <s>]
+```
+
+**Arguments:**
+
+| Argument | Description        |
+| -------- | ------------------ |
+| `<id>`   | Task ID (required) |
+
+**Options:**
+
+| Option                 | Description                                                 |
+| ---------------------- | ----------------------------------------------------------- |
+| `--title <title>`      | New task title                                              |
+| `--description <desc>` | New task description                                        |
+| `--priority <p>`       | Priority: low, medium, high, urgent                         |
+| `--status <s>`         | Status: backlog, todo, in_progress, review, done, cancelled |
+
+**Examples:**
+
+```bash
+pnpm openaidy tasks update abc123 --priority high
+pnpm openaidy tasks update abc123 --status done
+pnpm openaidy tasks update abc123 --title "New title" --priority urgent
+```
+
+**Exit Codes:** `0` success, `1` error, `2` invalid arguments
+
+---
+
+#### `tasks delete`
+
+Delete a task permanently.
+
+**Usage:**
+
+```bash
+openaidy tasks delete <id>
+```
+
+**Arguments:**
+
+| Argument | Description        |
+| -------- | ------------------ |
+| `<id>`   | Task ID (required) |
+
+**Examples:**
+
+```bash
+pnpm openaidy tasks delete abc123
+```
+
+**Exit Codes:** `0` success, `1` error, `2` missing task ID
+
+---
+
+#### `tasks kanban`
+
+Display all tasks grouped by status in Kanban board layout.
+
+**Usage:**
+
+```bash
+openaidy tasks kanban
+```
+
+**Examples:**
+
+```bash
+pnpm openaidy tasks kanban
+```
+
+**Exit Codes:** `0` success, `1` error
+
+---
+
+### `subtasks` - Subtask Management
+
+Commands for managing subtasks within a task.
+
+---
+
+#### `subtasks list`
+
+List all subtasks for a specific task.
+
+**Usage:**
+
+```bash
+openaidy subtasks list <taskId>
+```
+
+**Arguments:**
+
+| Argument   | Description        |
+| ---------- | ------------------ |
+| `<taskId>` | Task ID (required) |
+
+**Examples:**
+
+```bash
+pnpm openaidy subtasks list abc123
+```
+
+**Exit Codes:** `0` success, `1` error, `2` missing task ID
+
+---
+
+#### `subtasks complete`
+
+Mark a subtask as completed.
+
+**Usage:**
+
+```bash
+openaidy subtasks complete <subtaskId> [--result <result>]
+```
+
+**Arguments:**
+
+| Argument      | Description           |
+| ------------- | --------------------- |
+| `<subtaskId>` | Subtask ID (required) |
+
+**Options:**
+
+| Option         | Description                            |
+| -------------- | -------------------------------------- |
+| `--result <r>` | Completion result / summary (optional) |
+
+**Examples:**
+
+```bash
+pnpm openaidy subtasks complete abc123
+pnpm openaidy subtasks complete abc123 --result "API endpoint implemented and tested"
+```
+
+**Exit Codes:** `0` success, `1` error, `2` missing subtask ID
+
+---
+
+#### `subtasks fail`
+
+Mark a subtask as failed.
+
+**Usage:**
+
+```bash
+openaidy subtasks fail <subtaskId> [--reason <reason>]
+```
+
+**Arguments:**
+
+| Argument      | Description           |
+| ------------- | --------------------- |
+| `<subtaskId>` | Subtask ID (required) |
+
+**Options:**
+
+| Option         | Description                               |
+| -------------- | ----------------------------------------- |
+| `--reason <r>` | Failure reason / error message (optional) |
+
+**Examples:**
+
+```bash
+pnpm openaidy subtasks fail abc123
+pnpm openaidy subtasks fail abc123 --reason "API rate limit exceeded"
+```
+
+**Exit Codes:** `0` success, `1` error, `2` missing subtask ID
 
 ---
 
